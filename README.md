@@ -1,29 +1,72 @@
-# Webhook Endpoint
+# Webhook Logger
 
-Vercel serverless endpoint that receives POST requests with JSON payloads from the `log_trigger_go` workflow.
+Vercel serverless endpoint that receives POST requests with JSON payloads and provides a web UI to view logged requests.
+
+## Web UI
+
+Visit **`/`** to view the request logger dashboard:
+- 📊 Real-time display of incoming webhook requests
+- 🔄 Auto-refresh every 2 seconds
+- 💾 Stores last **500 requests** in memory
+- 🗑️ Clear all logs button
+
+**Production UI:** https://post-endpoint-green.vercel.app
 
 ## API Endpoint
 
-**POST** `/api/webhook`
+### `/api/webhook`
 
-**Request:**
-```json
-{
-  "data": "message:Hello World; timestamp:1707062400",
-  "timestamp": 1707062400
-}
+Single endpoint with multiple HTTP methods:
+
+**POST** - Receive webhook data
+```bash
+curl -X POST https://post-endpoint-green.vercel.app/api/webhook \
+  -H "Content-Type: application/json" \
+  -d '{"data": "message:Hello World", "timestamp": 1707062400}'
 ```
 
-**Response (200):**
+Response:
 ```json
 {
   "success": true,
   "message": "Payload received successfully",
-  "timestamp": 1770294172197,
   "data": {
-    "data": "message:Hello World; timestamp:1707062400",
+    "data": "message:Hello World",
     "timestamp": 1707062400
   }
+}
+```
+
+**GET** - Retrieve all logged requests
+```bash
+curl https://post-endpoint-green.vercel.app/api/webhook
+```
+
+Response:
+```json
+{
+  "success": true,
+  "logs": [
+    {
+      "timestamp": 1770296683291,
+      "payload": { "data": "message:test", "timestamp": 1707062400 },
+      "success": true
+    }
+  ],
+  "count": 1
+}
+```
+
+**DELETE** - Clear all logs
+```bash
+curl -X DELETE https://post-endpoint-green.vercel.app/api/webhook
+```
+
+Response:
+```json
+{
+  "success": true,
+  "message": "Logs cleared successfully"
 }
 ```
 
@@ -65,7 +108,8 @@ Dashboard: https://vercel.com/dashboard
 
 ## Files
 
-- `api/webhook.ts` - Handler function
+- `api/webhook.ts` - Single endpoint handling POST/GET/DELETE
+- `public/index.html` - Web UI for viewing logs
 - `package.json` - Dependencies
 - `tsconfig.json` - TypeScript config
 - `vercel.json` - Deployment config (optional)
