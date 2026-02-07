@@ -1,14 +1,25 @@
 # Webhook Logger
 
-Vercel serverless endpoint that receives POST requests with JSON payloads and provides a web UI to view logged requests.
+Simple Vercel serverless endpoint that receives POST requests with JSON payloads and provides a web UI to view logged requests.
+
+## Storage
+
+**In-memory storage only** - simple and fast:
+- ✅ Fast and reliable
+- ✅ No external dependencies
+- ⚠️ Resets on cold starts (~15min inactivity) or deployments
+- ⚠️ Each serverless instance has its own memory
+- 📊 **Max 500 logs** (oldest deleted when limit reached)
+
+Perfect for active testing and development. For persistent storage across restarts, consider using a database.
 
 ## Web UI
 
 Visit **`/`** to view the request logger dashboard:
 - 📊 Real-time display of incoming webhook requests
-- 🔄 Auto-refresh every 2 seconds
-- 💾 Stores last **500 requests** in memory
+- 🔄 Auto-refresh toggle (1 second intervals)
 - 🗑️ Clear all logs button
+- 📥 Download logs as JSON file
 
 **Production UI:** https://post-endpoint-green.vercel.app
 
@@ -16,11 +27,9 @@ Visit **`/`** to view the request logger dashboard:
 
 ### `/api/webhook`
 
-Single endpoint with multiple HTTP methods:
-
 **POST** - Receive webhook data
 ```bash
-curl -X POST https://post-endpoint-green.vercel.app/api/webhook \
+curl -X POST 'https://post-endpoint-green.vercel.app/api/webhook' \
   -H "Content-Type: application/json" \
   -d '{"data": "message:Hello World", "timestamp": 1707062400}'
 ```
@@ -39,7 +48,7 @@ Response:
 
 **GET** - Retrieve all logged requests
 ```bash
-curl https://post-endpoint-green.vercel.app/api/webhook
+curl 'https://post-endpoint-green.vercel.app/api/webhook'
 ```
 
 Response:
@@ -57,9 +66,9 @@ Response:
 }
 ```
 
-**DELETE** - Clear all logs
+**DELETE** - Clear logs
 ```bash
-curl -X DELETE https://post-endpoint-green.vercel.app/api/webhook
+curl -X DELETE 'https://post-endpoint-green.vercel.app/api/webhook'
 ```
 
 Response:
@@ -101,14 +110,14 @@ Production URL: `https://your-project.vercel.app/api/webhook`
 ## Monitoring
 
 ```bash
-vercel logs --prod --follow
+vercel logs your-project.vercel.app
 ```
 
 Dashboard: https://vercel.com/dashboard
 
 ## Files
 
-- `api/webhook.ts` - Single endpoint handling POST/GET/DELETE
+- `api/webhook.ts` - Serverless function handling POST/GET/DELETE
 - `public/index.html` - Web UI for viewing logs
 - `package.json` - Dependencies
 - `tsconfig.json` - TypeScript config
@@ -127,3 +136,4 @@ Dashboard: https://vercel.com/dashboard
 | 404 Not Found | Ensure endpoint is `/api/webhook` not `/webhook` |
 | Type errors | Run `npm run type-check` |
 | Deploy fails | Check `vercel logs` |
+| Logs disappeared | Cold start or different instance - normal serverless behavior |

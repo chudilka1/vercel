@@ -6,7 +6,7 @@ interface PayloadData {
   timestamp: number;
 }
 
-interface LogEntry {
+interface QueryLogEntry {
   timestamp: number;
   payload: PayloadData;
   success: boolean;
@@ -18,8 +18,10 @@ interface Response {
   data?: PayloadData;
 }
 
-const requestLogs: LogEntry[] = [];
 const MAX_LOGS = 500;
+
+// In-memory storage (resets on cold starts)
+let requestLogs: QueryLogEntry[] = [];
 
 function sendResponse(res: VercelResponse, status: number, message: string, data?: PayloadData): void {
   const response: Response = {
@@ -30,7 +32,7 @@ function sendResponse(res: VercelResponse, status: number, message: string, data
   res.status(status).json(response);
 }
 
-export default function handler(req: VercelRequest, res: VercelResponse): void {
+export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   // GET - retrieve logs
   if (req.method === 'GET') {
     res.status(StatusCodes.OK).json({
@@ -43,7 +45,7 @@ export default function handler(req: VercelRequest, res: VercelResponse): void {
 
   // DELETE - clear logs
   if (req.method === 'DELETE') {
-    requestLogs.length = 0;
+    requestLogs = [];
     res.status(StatusCodes.OK).json({
       success: true,
       message: 'Logs cleared successfully'
@@ -53,30 +55,31 @@ export default function handler(req: VercelRequest, res: VercelResponse): void {
 
   // POST - receive webhook data
   if (req.method !== 'POST') {
-    return sendResponse(res, StatusCodes.METHOD_NOT_ALLOWED, 'Method not allowed');
+    sendResponse(res, StatusCodes.METHOD_NOT_ALLOWED, 'Method not allowed');
+    return;
   }
 
   const contentType = req.headers['content-type'] || '';
   if (!contentType.startsWith('application/json')) {
-    return sendResponse(res, StatusCodes.BAD_REQUEST, 'Content-Type must be application/json');
+    sendResponse(res, StatusCodes.BAD_REQUEST, 'Content-Type must be application/json');
+    return;
   }
 
   const payload = req.body as PayloadData;
   if (!payload || typeof payload.data !== 'string' || typeof payload.timestamp !== 'number') {
-    return sendResponse(res, StatusCodes.BAD_REQUEST, 'Invalid payload structure');
+    sendResponse(res, StatusCodes.BAD_REQUEST, 'Invalid payload structure');
+    return;
   }
 
   console.log(JSON.stringify(payload));
 
   // Store log entry
-  requestLogs.unshift({
-    timestamp: Date.now(),
-    payload,
-    success: true
-  });
+  const logEntry = { timestamp: Date.now(), payload, success: true };
+  requestLogs.unshift(logEntry);
+  
   if (requestLogs.length > MAX_LOGS) {
-    requestLogs.pop();
+    requestLogs.splice(MAX_LOGS);
   }
-
+  
   sendResponse(res, StatusCodes.OK, 'Payload received successfully', payload);
 }

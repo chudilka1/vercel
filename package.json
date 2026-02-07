@@ -1,7 +1,7 @@
 {
   "name": "log-trigger-webhook",
   "version": "1.0.0",
-  "description": "Vercel webhook endpoint for log_trigger_go workflow",
+  "description": "Vercel webhook endpoint with in-memory storage",
   "main": "api/webhook.ts",
   "scripts": {
     "type-check": "tsc --noEmit"

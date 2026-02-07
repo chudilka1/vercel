@@ -46,22 +46,31 @@
     }
     
     .controls {
-      padding: 16px 24px;
+      padding: 20px 24px;
       background: #f9fafb;
       border-bottom: 1px solid #e5e7eb;
       display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+    
+    .button-group {
+      display: flex;
       gap: 12px;
       align-items: center;
+      flex: 0 0 auto;
     }
     
     button {
-      padding: 8px 16px;
+      padding: 10px 20px;
       border: none;
       border-radius: 6px;
       font-size: 14px;
       font-weight: 500;
       cursor: pointer;
       transition: all 0.2s;
+      white-space: nowrap;
     }
     
     .btn-clear {
@@ -73,6 +82,58 @@
       background: #dc2626;
     }
     
+    .btn-download {
+      background: #3b82f6;
+      color: white;
+    }
+    
+    .btn-download:hover {
+      background: #2563eb;
+    }
+    
+    .toggle-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 240px;
+      justify-content: flex-end;
+    }
+    
+    .toggles-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: flex-end;
+      flex: 0 0 auto;
+      margin-left: auto;
+    }
+    
+    .toggle-label {
+      color: #374151;
+      font-size: 14px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    
+    select {
+      padding: 6px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 14px;
+      background: white;
+      cursor: pointer;
+      color: #374151;
+    }
+    
+    select:hover {
+      border-color: #9ca3af;
+    }
+    
+    select:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
     
     .logs-container {
       padding: 24px;
@@ -198,10 +259,23 @@
     </div>
     
     <div class="controls">
-      <button class="btn-clear" onclick="clearLogs()">Clear All Logs</button>
-      <span style="margin-left: auto; color: #6b7280; font-size: 14px;">
-        Auto-refresh: <span id="auto-refresh-status">ON</span>
-      </span>
+      <div class="button-group">
+        <button class="btn-download" onclick="downloadLogs()">Download Logs</button>
+        <button class="btn-clear" onclick="clearLogs()">Clear Logs</button>
+      </div>
+      <div class="toggles-group">
+        <div class="toggle-container">
+          <span class="toggle-label">Refresh Interval:</span>
+          <select id="interval-select" onchange="changeInterval()">
+            <option value="0">Off</option>
+            <option value="500">0.5s</option>
+            <option value="1000" selected>1s</option>
+            <option value="2000">2s</option>
+            <option value="5000">5s</option>
+            <option value="10000">10s</option>
+          </select>
+        </div>
+      </div>
     </div>
     
     <div class="logs-container" id="logs">
@@ -210,14 +284,78 @@
   </div>
 
   <script>
-    let autoRefresh = true;
     let refreshInterval;
+    let currentLogs = [];
+    let isFetching = false;
+    let pollInterval = 1000;
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const savedInterval = localStorage.getItem('pollInterval');
+      if (savedInterval) {
+        pollInterval = parseInt(savedInterval);
+        document.getElementById('interval-select').value = savedInterval;
+      }
+      
+      fetchLogs();
+      if (pollInterval > 0) {
+        startAutoRefresh();
+      }
+    });
+
+    function changeInterval() {
+      const select = document.getElementById('interval-select');
+      pollInterval = parseInt(select.value);
+      localStorage.setItem('pollInterval', pollInterval);
+      
+      // Clear existing interval
+      if (refreshInterval) {
+        clearInterval(refreshInterval);
+        refreshInterval = null;
+      }
+      
+      // Start new interval if not "Off"
+      if (pollInterval > 0) {
+        startAutoRefresh();
+      }
+    }
+
+    function downloadLogs() {
+      if (currentLogs.length === 0) {
+        alert('No logs to download');
+        return;
+      }
+
+      // Create downloadable JSON
+      const dataStr = JSON.stringify(currentLogs, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+      
+      // Create download link
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `webhook-logs-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+      
+      // Trigger download
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
 
     async function fetchLogs() {
+      if (isFetching) {
+        return;
+      }
+      
+      isFetching = true;
+      
       try {
         const res = await fetch('/api/webhook');
         const data = await res.json();
-        
+      
+        currentLogs = data.logs || [];
         document.getElementById('log-count').textContent = data.count;
         
         const logsContainer = document.getElementById('logs');
@@ -252,9 +390,11 @@
         console.error('Failed to fetch logs:', error);
         document.getElementById('logs').innerHTML = `
           <div class="empty-state">
-            <p style="color: #ef4444;">Failed to load logs</p>
+            <p>Failed to load logs</p>
           </div>
         `;
+      } finally {
+        isFetching = false;
       }
     }
 
@@ -268,7 +408,8 @@
         const data = await res.json();
         
         if (data.success) {
-          fetchLogs();
+          isFetching = false;
+          await fetchLogs();
         } else {
           alert('Failed to clear logs');
         }
@@ -279,12 +420,8 @@
     }
 
     function startAutoRefresh() {
-      refreshInterval = setInterval(fetchLogs, 2000);
+      refreshInterval = setInterval(fetchLogs, pollInterval);
     }
-
-    // Initial load and start auto-refresh
-    fetchLogs();
-    startAutoRefresh();
   </script>
 </body>
 </html>
